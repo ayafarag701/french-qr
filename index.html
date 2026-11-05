@@ -83,6 +83,7 @@ button.secondary{background:#fde3e8;color:var(--deep)}
 <script>
 const $=id=>document.getElementById(id);
 let voices=[];
+let lastPhrase='';
 function loadVoices(){
   const all=speechSynthesis.getVoices();
   voices=all.filter(v=>/^fr([_-]|$)/i.test(v.lang));
@@ -122,6 +123,7 @@ document.querySelectorAll('input[name="src"]').forEach(r=>r.addEventListener('ch
 $('listen').onclick=()=>speak($('phrase').value);
 $('make').onclick=()=>{
   const phrase=$('phrase').value.trim();
+  lastPhrase=phrase;
   if(!phrase){alert('Please enter a French word or phrase.');return}
   const src=document.querySelector('input[name="src"]:checked').value;
   const voice=selectedVoice();
@@ -143,7 +145,7 @@ $('download').onclick=()=>{
   const img=$('qrcode').querySelector('img');
   let data=canvas?canvas.toDataURL('image/png'):img?.src;
   if(!data){alert('QR code is not ready yet.');return}
-  const a=document.createElement('a');a.href=data;a.download='french-pronunciation-qr.png';a.click();
+  const a=document.createElement('a');a.href=data;a.download=(lastPhrase.replace(/[\\/:*?"<>|\r\n]+/g,' ').trim().slice(0,60)||'french-pronunciation-qr')+'.png';a.click();
 };
 // QR landing mode (what the student sees): only the word and a Play button. No typing.
 const params=new URLSearchParams(location.search);
