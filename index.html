@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>French Pronunciation QR Maker</title>
+<style>
+:root{font-family:Arial,Helvetica,sans-serif;color:#202334;background:#f5f4fb}
+*{box-sizing:border-box}body{margin:0;padding:24px}
+main{max-width:760px;margin:24px auto;background:white;border-radius:22px;padding:28px;box-shadow:0 12px 36px #29204a14}
+h1{margin:0 0 8px;font-size:27px}p{color:#626579;line-height:1.5}
+label{display:block;font-weight:700;margin:18px 0 8px}
+textarea,input,select{width:100%;padding:13px;border:1px solid #d9d8e5;border-radius:12px;font-size:16px;background:#fff;color:#202334}
+textarea{min-height:90px;resize:vertical}
+.choices{display:grid;grid-template-columns:repeat(4,1fr);gap:9px}
+.choice{border:1px solid #dedbea;border-radius:13px;padding:12px 7px;text-align:center;cursor:pointer;font-weight:600}
+.choice input{width:auto;margin:0 0 7px;display:block;margin-inline:auto}
+button{border:0;border-radius:12px;padding:13px 18px;font-size:15px;font-weight:700;cursor:pointer;margin:12px 8px 0 0;background:#6e55bd;color:white}
+button.secondary{background:#eeeaf8;color:#43366d}
+#qrwrap{margin-top:22px;padding:18px;border-radius:16px;background:#faf9fd;text-align:center;display:none}
+#qrcode{display:inline-block;background:white;padding:12px;border-radius:12px}
+#qrcode img,#qrcode canvas{display:block;margin:auto}
+.note{font-size:13px;background:#fff8e8;padding:12px;border-radius:10px;color:#67552b}
+.small{font-size:13px}
+@media(max-width:560px){body{padding:10px}.choices{grid-template-columns:repeat(2,1fr)}main{padding:20px}}
+</style>
+</head>
+<body>
+<main>
+<h1>French Pronunciation QR Maker 🇫🇷</h1>
+<p>Write a French letter, word, or phrase, choose a voice preference, listen, then create a QR code for your card.</p>
+
+<label for="phrase">French text</label>
+<textarea id="phrase" placeholder="e.g. bonjour, la maison, merci"></textarea>
+
+<label>Voice preference</label>
+<div class="choices">
+<label class="choice"><input type="radio" name="kind" value="girl">👧 Girl</label>
+<label class="choice"><input type="radio" name="kind" value="boy">👦 Boy</label>
+<label class="choice"><input type="radio" name="kind" value="woman" checked>👩 Adult woman</label>
+<label class="choice"><input type="radio" name="kind" value="man">👨 Adult man</label>
+</div>
+
+<label for="voice">Available French voice on this device</label>
+<select id="voice"><option value="">Loading French voices…</option></select>
+
+<label for="rate">Speaking speed: <span id="rateval">1.0×</span></label>
+<input id="rate" type="range" min="0.65" max="1.25" step="0.05" value="1">
+
+<button id="listen">▶ Listen</button>
+<button id="make" class="secondary">Create QR code</button>
+
+<div class="note small">Important: browser voices are supplied by the device. The same voice may not be available on every phone. A real child voice is not guaranteed. After scanning, the student may need to tap Play because phones usually block automatic audio.</div>
+
+<div id="qrwrap">
+<h2>Your QR code</h2>
+<div id="qrcode"></div>
+<p class="small" id="qrtext"></p>
+<button id="download">Download QR (PNG)</button>
+</div>
+</main>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script>
+const $=id=>document.getElementById(id);
+let voices=[];
+function loadVoices(){
+  const all=speechSynthesis.getVoices();
+  voices=all.filter(v=>/^fr([_-]|$)/i.test(v.lang));
+  const sel=$('voice'), old=sel.value;
+  sel.innerHTML='';
+  if(!voices.length){sel.innerHTML='<option value="">No French voice found on this device</option>';return;}
+  voices.forEach((v,i)=>{const o=document.createElement('option');o.value=String(i);o.textContent=`${v.name} — ${v.lang}`;sel.appendChild(o)});
+  if(old && Number(old)<voices.length)sel.value=old;
+  else {
+    const pref=voices.findIndex(v=>/female|woman|am[eé]lie|audrey|hortense|julie|marie|celine|denise/i.test(v.name));
+    sel.value=String(pref>=0?pref:0);
+  }
+}
+speechSynthesis.onvoiceschanged=loadVoices;
+loadVoices();
+$('rate').addEventListener('input',()=> $('rateval').textContent=Number($('rate').value).toFixed(2)+'×');
+function selectedVoice(){return voices[Number($('voice').value)]||null}
+function speak(text){
+  if(!text.trim()){alert('Please enter a French word or phrase.');return}
+  if(!('speechSynthesis' in window)){alert('Speech synthesis is not supported in this browser.');return}
+  speechSynthesis.cancel();
+  const u=new SpeechSynthesisUtterance(text);
+  u.lang='fr-FR';u.rate=Number($('rate').value);
+  const v=selectedVoice();if(v)u.voice=v;
+  speechSynthesis.speak(u);
+}
+$('listen').onclick=()=>speak($('phrase').value);
+$('make').onclick=()=>{
+  const phrase=$('phrase').value.trim();
+  if(!phrase){alert('Please enter a French word or phrase.');return}
+  const kind=document.querySelector('input[name="kind"]:checked').value;
+  const voice=selectedVoice();
+  // Keep QR self-contained as a URL to this hosted page. The chosen voice is a preference;
+  // the actual available voice is device-dependent.
+  const url=new URL(location.href);
+  url.search='';url.hash='';
+  url.searchParams.set('text',phrase);
+  url.searchParams.set('kind',kind);
+  url.searchParams.set('rate',$('rate').value);
+  if(voice)url.searchParams.set('voiceName',voice.name);
+  $('qrcode').innerHTML='';
+  new QRCode($('qrcode'),{text:url.toString(),width:240,height:240,correctLevel:QRCode.CorrectLevel.M});
+  $('qrtext').textContent=url.toString();
+  $('qrwrap').style.display='block';
+};
+$('download').onclick=()=>{
+  const canvas=$('qrcode').querySelector('canvas');
+  const img=$('qrcode').querySelector('img');
+  let data=canvas?canvas.toDataURL('image/png'):img?.src;
+  if(!data){alert('QR code is not ready yet.');return}
+  const a=document.createElement('a');a.href=data;a.download='french-pronunciation-qr.png';a.click();
+};
+// QR landing mode: fill the text and settings, then let the learner press Play.
+const params=new URLSearchParams(location.search);
+if(params.has('text')){
+  $('phrase').value=params.get('text');
+  $('rate').value=params.get('rate')||'1';
+  $('rateval').textContent=Number($('rate').value).toFixed(2)+'×';
+  const k=params.get('kind');
+  if(k){const r=document.querySelector(`input[name="kind"][value="${k}"]`);if(r)r.checked=true;}
+  const requested=params.get('voiceName');
+  if(requested){
+    const match=voices.findIndex(v=>v.name===requested);
+    if(match>=0)$('voice').value=String(match);
+  }
+  $('make').style.display='none';
+  $('qrwrap').style.display='none';
+  $('listen').textContent='▶ Play pronunciation';
+  document.querySelector('h1').textContent='Listen to the French pronunciation 🇫🇷';
+  document.querySelector('p').textContent='Tap Play to hear the word or phrase.';
+}
+</script>
+</body>
+</html>
